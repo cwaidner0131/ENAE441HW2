@@ -85,30 +85,30 @@ def convert_frame_ECI_to_Peri(r,v): #converts ECI to Perifocal frame
     R1=rotate(2,-oe[4]) # oe 4 is OMEGA
     R2=rotate(1,-oe[2]) # oe 2 is i
     R3=rotate(2,-oe[3]) # oe 3 is omega
-    r=np.transpose(R3@R2@R1)@r
-    v=np.transpose(R3@R2@R1)@v
+    r=np.transpose(R3@R2@R1)@r #transpose is used to convert from ECI to Perifocal
+    v=np.transpose(R3@R2@R1)@v 
     return r,v
 
-def convert_frame_ECI_to_ECEF(r,v,tstep,rotation_rate): #converts Perifocal to ECEF frame
-    delta_g=rotation_rate*tstep#+delta_go #need to add intial angle
-    R3=rotate(2,delta_g)
+def convert_frame_ECI_to_ECEF(r,v,tstep,rotation_rate): #converts ECI to ECEF frame
+    delta_g=rotation_rate*tstep#+delta_go # initial angle zero
+    R3=rotate(2,delta_g) 
     r=R3@r
     v=R3@v
     return r,v
 
 def convert_frame_ECEF_to_AnglesOnly(ECEF_r): #converts ECEF to Topocentric frame
-    lambda1 = math.atan2(ECEF_r[1] , ECEF_r[0])  # Corrected from y.y[1] to y[1]
+    lambda1 = math.atan2(ECEF_r[1] , ECEF_r[0])  # use atan2 to get the correct quadrant, NOTE DONT USE atan
     norm_r = math.sqrt(ECEF_r[0] ** 2 + ECEF_r[1] ** 2 + ECEF_r[2] ** 2)
     phi = math.asin(ECEF_r[2] / norm_r)  # Corrected from y.y[2] to y[2]
     return phi, lambda1
 
-def propogate(r,v,tspan): #propogates orbit
+def propogate(r,v,tspan): #propogates orbit  using scipy
     y0=np.concatenate([r.flatten(),v.flatten()])
     t=np.linspace(0,tspan,1000)
     y=scipy.integrate.solve_ivp(fun_def1,(0,tspan),y0,method='DOP853',t_eval=t)
     return y
 
-def plot_orbit(y,title,xaxis=None,yaxis=None,zaxis=None,color=None): #plots orbit
+def plot_orbit(y,title,xaxis=None,yaxis=None,zaxis=None,color=None): #plots orbit, simple 3d plot after propogation
     fig=plt.figure()
     ax=plt.axes(projection='3d')
     ax.plot3D(y.y[0],y.y[1],y.y[2],color)
@@ -118,7 +118,7 @@ def plot_orbit(y,title,xaxis=None,yaxis=None,zaxis=None,color=None): #plots orbi
     ax.set_zlabel(zaxis)
     plt.show()
 
-def plot_orbit_non_ECI(x,y,z,title,xaxis=None,yaxis=None,zaxis=None,color=None): #plots orbit
+def plot_orbit_non_ECI(x,y,z,title,xaxis=None,yaxis=None,zaxis=None,color=None): #plots orbit w/r to x y z coordinates
     fig=plt.figure()
     ax=plt.axes(projection='3d')
     ax.plot3D(x,y,z,color)
@@ -135,27 +135,19 @@ def plot_groundtrack(phi,lambda1,title,xaxis=None,yaxis=None,color=None): #plots
     ax.set_global()
     ax.stock_img()
     ax.coastlines()
-    ax.scatter(lambda1*180/math.pi,phi*180/math.pi)
-    ax.plot(-116.9141, 35, 'x', transform=ccrs.PlateCarree())
+    ax.scatter(lambda1*180/math.pi,phi*180/math.pi) # Ground track of satellite
+    ax.plot(-116.9141, 35, 'x', transform=ccrs.PlateCarree()) # Observer location
     
     plt.title(title)
     plt.xlabel(xaxis)
     plt.ylabel(yaxis)
     plt.show()
 
-def convert_frame_Topo_to_ECEF(phi,lambda1,range): #converts phi and lambda to ECEF vector
-    
-    R1=rotate(2,-(90+lambda1))
-    R2=rotate(0,-(90-phi))
-    Rtot=np.transpose(R1@R2)
-    r=Rtot@range
-    return r
-
-def ECEF_vec_from_angles(phi,lambda1): #converts phi and lambda to ECEF vector
+def ECEF_vec_from_angles(phi,lambda1): #converts phi and lambda to ECEF unit vector
     r=np.zeros(3)
-    r[0]=math.cos(phi)*math.cos(lambda1)
-    r[1]=math.cos(phi)*math.sin(lambda1)
-    r[2]=math.sin(phi)
+    r[0]=math.cos(phi)*math.cos(lambda1) # x
+    r[1]=math.cos(phi)*math.sin(lambda1)# y
+    r[2]=math.sin(phi) # z
     return r
 
 def ECEF_to_Topo(r,phi,lambda1): #converts ECEF to Topocentric frame
@@ -166,7 +158,7 @@ def ECEF_to_Topo(r,phi,lambda1): #converts ECEF to Topocentric frame
     return r
 
 def polarplot(elevation,azimuth): #takes elevation and azimuth lists and then plots polar plot of Ground track w/r to observer
-    
+    # ngl no idea how this function works
     # Generate a polar projection plot
     fig = plt.figure()
     ax = fig.add_subplot(111, polar=True)
@@ -180,7 +172,6 @@ def polarplot(elevation,azimuth): #takes elevation and azimuth lists and then pl
     # To plot the elevation, we need to think of defining the radius as 90 - elevation. This is so
     # that the plot places 0 degrees elevation far away from the center, and 90 degrees at the center. 
     r = 90 - el_plot
-    r[r<0]=0
 
     # WARNING: Azimuth is in radians, elevation is in degrees
     ax.plot(azimuth, r)
@@ -197,6 +188,7 @@ def polarplot(elevation,azimuth): #takes elevation and azimuth lists and then pl
 if __name__=="__main__":
 
     ################ Problem 1 ################
+
     mu=398600
     oe=[7000,.05,45,30,60,0] #In order a e i w W nu
     r,v=convert_to_rv(oe,mu)  # ECI frame
@@ -206,6 +198,7 @@ if __name__=="__main__":
     # ECI frame orbit
     y=propogate(r,v,tspan)
 
+    # Initialize lists to store r and v values
     t=y.y.shape[1]
     ECEF_r=np.zeros(t)
     ECEF_v=np.zeros(t)
@@ -218,6 +211,7 @@ if __name__=="__main__":
     PERIFOCAL_r=np.zeros(t)
     PERIFOCAL_v=np.zeros(t)
 
+    #Converting to ECEF and Perifocal frame
     for i in range(y.y.shape[1]):
         tstep = i * (tspan / t)
         ECEF_r,ECEF_v=convert_frame_ECI_to_ECEF(y.y[0:3,i],y.y[3:6,i],tstep,rotation_rate)
@@ -229,6 +223,7 @@ if __name__=="__main__":
         y2[i]=PERIFOCAL_r[1]
         z2[i]=PERIFOCAL_r[2]
 
+    #Plotting orbits
     plot_orbit(y,'ECI frame orbit','x','y','z','red')
     plot_orbit_non_ECI(x1,y1,z1,'ECEF frame orbit','i1','i2','i3','blue')
     plot_orbit_non_ECI(x2,y2,z2,'Perifocal frame orbit','i','p ','h','green')
@@ -264,7 +259,7 @@ if __name__=="__main__":
     lambda_values3=np.zeros(t)
     lambda_values4 = np.zeros(t)
 
-    #Converting to Anglesonly 
+    #Converting to Anglesonly values for ECEF frame from ECI frame
     for i in range(y1.y.shape[1]):
         
         tstep = i * (tspan / t)
@@ -295,6 +290,7 @@ if __name__=="__main__":
     plot_groundtrack(phi_values2,lambda_values2,'Topocentric frame orbit','phi','lambda','blue')
     plot_groundtrack(phi_values3,lambda_values3,'Topocentric frame orbit','phi','lambda','green')
     plot_groundtrack(phi_values4,lambda_values4,'Topocentric frame orbit','phi','lambda','black')
+
     ################ Problem 3 ################
 
     #Phi,lambda values of observer
@@ -310,6 +306,7 @@ if __name__=="__main__":
     #Range vector w/r to observer
     R_vec=ECEF_vec_from_angles(phi,lambda1)*rmag_earthrad
 
+    # Initialize lists to store azimuth and elevation values
     range_vec1=np.zeros(t)
     azimuth1=np.zeros(t)
     elevation1=np.zeros(t)
@@ -320,13 +317,15 @@ if __name__=="__main__":
     azimuth4=np.zeros(t)
     elevation4=np.zeros(t)
 
+    #Converting to ECEF frame and then to Topocentric frame to get azimuth and elevation
     for i in range(y1.y.shape[1]):
         tstep = i * (tspan / t)
 
-        ECEF_r1,ECEF_v1=convert_frame_ECI_to_ECEF(y1.y[0:3,i],y1.y[3:6,i],tstep,rotation_rate)
-        range_vec1=Rtot@(ECEF_r1-R_vec)
-        azimuth1[i]=math.atan2(range_vec1[1],range_vec1[0])
-        elevation1[i]=math.asin(range_vec1[2]/np.linalg.norm(range_vec1))*180/math.pi
+        ECEF_r1,ECEF_v1=convert_frame_ECI_to_ECEF(y1.y[0:3,i],y1.y[3:6,i],tstep,rotation_rate) # ECEF frame from ECI frame
+        range_vec1=Rtot@(ECEF_r1-R_vec) # Range vector w/r to observer
+        azimuth1[i]=math.atan2(range_vec1[1],range_vec1[0]) # Azimuth NOTE in radians
+        elevation1[i]=math.asin(range_vec1[2]/np.linalg.norm(range_vec1))*180/math.pi # Elevation NOTE in degress
+        #Repeat below...
 
         ECEF_r2,ECEF_v2=convert_frame_ECI_to_ECEF(y2.y[0:3,i],y2.y[3:6,i],tstep,rotation_rate)
         range_vec2=Rtot@(ECEF_r2-R_vec)
@@ -343,11 +342,16 @@ if __name__=="__main__":
         azimuth4[i]=math.atan2(range_vec4[1],range_vec4[0])
         elevation4[i]=math.asin(range_vec4[2]/np.linalg.norm(range_vec4))*180/math.pi
 
+    #Plotting polar plots
     polarplot(elevation1,azimuth1)
     polarplot(elevation2,azimuth2)
     polarplot(elevation3,azimuth3)
     polarplot(elevation4,azimuth4)
         
+        
+
+
+
         
 
 
